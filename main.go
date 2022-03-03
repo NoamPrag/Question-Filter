@@ -9,8 +9,6 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-const sheet string = "Scheduled Events"
-const columnsWhichAreNotQuestions = 19
 const subjectIDColumnIndex = 2
 
 type Question struct {
@@ -104,7 +102,7 @@ func getCellAxis(columnName string, row int) string {
 	return columnName + strconv.Itoa(row)
 }
 
-func writeColumn(column []string, outputFile *excelize.File, columnIndexInOutputFile int) {
+func writeColumn(column []string, outputFile *excelize.File, sheet string, columnIndexInOutputFile int) {
 	columnName, err := excelize.ColumnNumberToName(columnIndexInOutputFile)
 	if err != nil {
 		fmt.Println(err)
@@ -113,6 +111,29 @@ func writeColumn(column []string, outputFile *excelize.File, columnIndexInOutput
 	for rowIndex, value := range column {
 		outputFile.SetCellValue(sheet, getCellAxis(columnName, rowIndex+1), value)
 	}
+}
+
+func findWhiteSpace(column []string) int {
+	for i, text := range column {
+		// Finding the start of the "id" list.
+		if text == "id" {
+			return i
+		}
+	}
+	return -1
+}
+
+func isQuestion(title string) bool {
+	return strings.Contains(title, "E") && strings.Contains(title, "_F") && strings.Contains(title, "_Q")
+}
+
+func findFirstQuestionColumn(titles []string) int {
+	for i, title := range titles {
+		if isQuestion(title) {
+			return i
+		}
+	}
+	return -1
 }
 
 func main() {
@@ -138,11 +159,23 @@ func main() {
 
 	questionFilter := getQuestionFilterFromUser()
 
-	rows, err := inputFile.GetRows(sheet)
+	sheet := inputFile.WorkBook.Sheets.Sheet[0].Name
+
+	inputFileRows, err := inputFile.GetRows(sheet)
 	if err != nil {
 		fmt.Println(err)
 	}
-	questionTitles := rows[0][columnsWhichAreNotQuestions:]
+	inputFileColumns := transpose(inputFileRows)
+
+	// Eliminating white space at top
+	startWhiteSpace := findWhiteSpace(inputFileColumns[0])
+	inputFileRows = inputFileRows[startWhiteSpace:]
+
+	inputFileColumns = transpose(inputFileRows)
+
+	columnsWhichAreNotQuestions := findFirstQuestionColumn(inputFileRows[0])
+
+	questionTitles := inputFileRows[0][columnsWhichAreNotQuestions:]
 
 	var questions []*Question
 	for _, questionTitle := range questionTitles {
@@ -151,17 +184,15 @@ func main() {
 
 	filteredQuestionIndices := filterQuestions(questionFilter, questions)
 
-	inputFileColumns := transpose(rows)
-
 	outputFile := excelize.NewFile()
 	outputFile.SetSheetName("Sheet1", sheet)
 
-	writeColumn(inputFileColumns[subjectIDColumnIndex], outputFile, 1)
+	writeColumn(inputFileColumns[subjectIDColumnIndex], outputFile, sheet, 1)
 
 	for i, filteredQuestionIndex := range filteredQuestionIndices {
 		column := inputFileColumns[filteredQuestionIndex+columnsWhichAreNotQuestions]
 		// plus 2, because first column is subject ID
-		writeColumn(column, outputFile, i+2)
+		writeColumn(column, outputFile, sheet, i+2)
 	}
 
 	outputFileName, err := zenity.SelectFileSave(
