@@ -26,6 +26,7 @@ Filtering questions using "1, 3-5, 8" will select all the first question, all th
 
 ### Build from source
 If you wish to alter the functionality of the program, change to code and then run the "build.sh" script. This script will compile the application for mac and windows and will place it in the app directory instead of the current build.
+* Note that this script is currently suitable for running on macos only.
 
 ## Tools used
 ---
